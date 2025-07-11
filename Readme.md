@@ -284,3 +284,160 @@ counts.collect().foreach(println)
 val t1 = System.nanoTime()
 println("Durasi (tuned): " + (t1 - t0)/1e9 + " detik")
 ```
+
+## D. Visualisasi di Google Colab
+
+### 🔧 Setup dan Import Dataset
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+path = '/content/drive/MyDrive/Kaggle/'
+df_peringkat = pd.read_csv(path + 'TIBD_peringkat_ekspedisi.csv')
+df_rating = pd.read_csv(path + 'TIBD_rating_vs_ontime.csv')
+df_terbanyak = pd.read_csv(path + 'TIBD_hasil_ekspedisi_terbanyak.csv')
+
+df_peringkat['jumlah_delayed'] = df_peringkat['total_pengiriman'] - df_peringkat['jumlah_ontime']
+```
+
+### 📊 Visualisasi 1: Barplot Persentase On-Time
+
+```python
+plt.figure(figsize=(12, 7))
+ax = sns.barplot(data=df_peringkat, x='courier_delivery', y='persen_ontime',
+                 palette='husl')
+
+for p in ax.patches:
+    ax.annotate(f"{p.get_height():.2f}%", (p.get_x() + p.get_width()/2., p.get_height()),
+                ha='center', va='bottom', fontsize=11, xytext=(0, 5), textcoords='offset points')
+
+plt.title('Performance Pengiriman Ekspedisi')
+plt.xlabel('Ekspedisi')
+plt.ylabel('Persentase On-Time (%)')
+plt.ylim(88, 92)
+plt.tight_layout()
+plt.show()
+```
+
+### 📈 Visualisasi 2: Bubble Chart Rating vs Status
+
+```python
+plt.figure(figsize=(10, 6))
+sns.scatterplot(data=df_rating, x='ontime_status', y='rata_rating_produk',
+                size='total_transaksi', hue='ontime_status', palette='husl', sizes=(500, 2000))
+
+for i, row in df_rating.iterrows():
+    plt.text(row['ontime_status'], row['rata_rating_produk'], f"{row['total_transaksi']//1000}k",
+             ha='center', va='center', fontsize=10)
+
+plt.title('Hubungan Status Pengiriman dan Rating Produk')
+plt.tight_layout()
+plt.show()
+```
+
+### 🍩 Visualisasi 3: Donut Chart Status Pengiriman
+
+```python
+plt.figure(figsize=(8, 8))
+colors = ['#e74c3c', '#2ecc71']
+plt.pie(df_rating['total_transaksi'], labels=df_rating['ontime_status'],
+        autopct='%1.1f%%', colors=colors, startangle=90,
+        wedgeprops=dict(width=0.4))
+
+plt.gca().add_artist(plt.Circle((0, 0), 0.3, color='white'))
+plt.title('Distribusi Status Pengiriman')
+plt.tight_layout()
+plt.show()
+```
+
+### 🌡️ Visualisasi 4: Heatmap Ekspedisi per Kota
+
+```python
+pivot_data = df_terbanyak.pivot(index="city", columns="courier_delivery", values="persen_penggunaan")
+plt.figure(figsize=(14, 8))
+sns.heatmap(pivot_data, annot=True, cmap="YlGnBu", fmt=".1f", linewidths=.5)
+plt.title('Heatmap Popularitas Ekspedisi per Kota')
+plt.tight_layout()
+plt.show()
+```
+
+### 📦 Visualisasi 5: Treemap Total Penggunaan Ekspedisi
+
+```python
+!pip install squarify
+import squarify
+
+df_agg = df_terbanyak.groupby('courier_delivery')['jumlah_penggunaan'].sum().reset_index()
+plt.figure(figsize=(14, 8))
+squarify.plot(sizes=df_agg['jumlah_penggunaan'], label=df_agg['courier_delivery'], alpha=0.8)
+plt.title('Total Penggunaan Ekspedisi di Semua Kota')
+plt.axis('off')
+plt.show()
+```
+
+### 📡 Visualisasi 6: Radar Chart Perbandingan Ekspedisi
+
+```python
+from math import pi
+
+df_peringkat['total_scaled'] = (df_peringkat['total_pengiriman'] / df_peringkat['total_pengiriman'].max()) * 100
+categories = ['Persen On-time', 'Total Pengiriman (scaled)', 'Rata Estimasi Hari']
+N = len(categories)
+angles = [n / float(N) * 2 * pi for n in range(N)] + [0]
+
+plt.figure(figsize=(8, 8))
+ax = plt.subplot(111, polar=True)
+ax.set_theta_offset(pi / 2)
+ax.set_theta_direction(-1)
+plt.xticks(angles[:-1], categories)
+
+for i, row in df_peringkat.iterrows():
+    values = [row['persen_ontime'], row['total_scaled'], row['rata_estimasi_hari'] * 20]
+    values += values[:1]
+    ax.plot(angles, values, linewidth=2, linestyle='solid', label=row['courier_delivery'])
+    ax.fill(angles, values, alpha=0.1)
+
+plt.title('Perbandingan Komprehensif Ekspedisi')
+plt.legend(loc='upper right', bbox_to_anchor=(1.3, 1.1))
+plt.tight_layout()
+plt.show()
+```
+
+### 🧩 Visualisasi 7: Small Multiples Penggunaan Ekspedisi per Kota
+
+```python
+g = sns.FacetGrid(df_terbanyak, col='courier_delivery', col_wrap=3, height=4)
+g.map(sns.barplot, 'city', 'persen_penggunaan', order=df_terbanyak['city'].unique())
+g.set_titles("{col_name}")
+g.set_xticklabels(rotation=90)
+plt.tight_layout()
+plt.show()
+```
+
+### 🏙️ Visualisasi 8: Top 5 Kota dengan Penggunaan Tertinggi
+
+```python
+top_cities = df_terbanyak.groupby('city')['jumlah_penggunaan'].sum().nlargest(5).index
+df_top = df_terbanyak[df_terbanyak['city'].isin(top_cities)]
+
+plt.figure(figsize=(12, 6))
+sns.barplot(x='jumlah_penggunaan', y='city', hue='courier_delivery', data=df_top)
+plt.title('Top 5 Kota dengan Penggunaan Ekspedisi Tertinggi')
+plt.tight_layout()
+plt.show()
+```
+
+### 🌍 Visualisasi 9: Distribusi Ekspedisi per Kota (Semua)
+
+```python
+plt.figure(figsize=(14, 8))
+sns.barplot(x='jumlah_penggunaan', y='city', hue='courier_delivery', data=df_terbanyak)
+plt.title('Distribusi Penggunaan Jasa Ekspedisi di Setiap Kota')
+plt.tight_layout()
+plt.show()
+```
